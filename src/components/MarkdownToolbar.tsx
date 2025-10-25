@@ -1,144 +1,158 @@
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import {
-  Bold,
-  Italic,
-  Strikethrough,
-  Code,
-  Heading1,
-  Heading2,
-  Heading3,
-  List,
-  ListOrdered,
-  Quote,
-  Link,
-  Table,
+import { Editor } from '@tiptap/react';
+import { 
+  Bold, 
+  Italic, 
+  Strikethrough, 
+  Code, 
+  Heading1, 
+  Heading2, 
+  Heading3, 
+  List, 
+  ListOrdered, 
+  Quote, 
+  Link as LinkIcon,
+  Table as TableIcon
 } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 interface MarkdownToolbarProps {
-  onInsert: (before: string, after?: string) => void;
+  editor: Editor | null;
 }
 
-export function MarkdownToolbar({ onInsert }: MarkdownToolbarProps) {
-  const tools = [
-    { icon: Bold, label: 'Bold', before: '**', after: '**' },
-    { icon: Italic, label: 'Italic', before: '_', after: '_' },
-    { icon: Strikethrough, label: 'Strikethrough', before: '~~', after: '~~' },
-    { icon: Code, label: 'Code', before: '`', after: '`' },
-  ];
-
-  const headingTools = [
-    { icon: Heading1, label: 'Heading 1', before: '# ', after: undefined },
-    { icon: Heading2, label: 'Heading 2', before: '## ', after: undefined },
-    { icon: Heading3, label: 'Heading 3', before: '### ', after: undefined },
-  ];
-
-  const listTools = [
-    { icon: List, label: 'Bullet List', before: '- ', after: undefined },
-    { icon: ListOrdered, label: 'Numbered List', before: '1. ', after: undefined },
-    { icon: Quote, label: 'Quote', before: '> ', after: undefined },
-  ];
-
-  const insertTable = () => {
-    const table = '\n| Header 1 | Header 2 | Header 3 |\n|----------|----------|----------|\n| Cell 1   | Cell 2   | Cell 3   |\n| Cell 4   | Cell 5   | Cell 6   |\n';
-    onInsert(table);
-  };
-
-  const insertLink = () => {
-    onInsert('[', '](url)');
-  };
+export function MarkdownToolbar({ editor }: MarkdownToolbarProps) {
+  if (!editor) return null;
 
   return (
-    <TooltipProvider>
-      <div className="flex items-center gap-1 p-2 border-b border-border/50 bg-muted/30">
-        {tools.map((tool) => (
-          <Tooltip key={tool.label}>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onInsert(tool.before, tool.after)}
-                className="h-8 w-8 p-0"
-              >
-                <tool.icon className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{tool.label}</TooltipContent>
-          </Tooltip>
-        ))}
+    <div className="p-2 flex flex-wrap gap-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        className={editor.isActive('bold') ? 'bg-accent' : ''}
+        title="Bold"
+      >
+        <Bold className="h-4 w-4" />
+      </Button>
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+        className={editor.isActive('italic') ? 'bg-accent' : ''}
+        title="Italic"
+      >
+        <Italic className="h-4 w-4" />
+      </Button>
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+        className={editor.isActive('strike') ? 'bg-accent' : ''}
+        title="Strikethrough"
+      >
+        <Strikethrough className="h-4 w-4" />
+      </Button>
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleCode().run()}
+        className={editor.isActive('code') ? 'bg-accent' : ''}
+        title="Inline Code"
+      >
+        <Code className="h-4 w-4" />
+      </Button>
 
-        <Separator orientation="vertical" className="h-6 mx-1" />
+      <div className="w-px h-8 bg-border mx-1" />
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+        className={editor.isActive('heading', { level: 1 }) ? 'bg-accent' : ''}
+        title="Heading 1"
+      >
+        <Heading1 className="h-4 w-4" />
+      </Button>
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        className={editor.isActive('heading', { level: 2 }) ? 'bg-accent' : ''}
+        title="Heading 2"
+      >
+        <Heading2 className="h-4 w-4" />
+      </Button>
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+        className={editor.isActive('heading', { level: 3 }) ? 'bg-accent' : ''}
+        title="Heading 3"
+      >
+        <Heading3 className="h-4 w-4" />
+      </Button>
 
-        {headingTools.map((tool) => (
-          <Tooltip key={tool.label}>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onInsert(tool.before, tool.after)}
-                className="h-8 w-8 p-0"
-              >
-                <tool.icon className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{tool.label}</TooltipContent>
-          </Tooltip>
-        ))}
+      <div className="w-px h-8 bg-border mx-1" />
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        className={editor.isActive('bulletList') ? 'bg-accent' : ''}
+        title="Bullet List"
+      >
+        <List className="h-4 w-4" />
+      </Button>
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        className={editor.isActive('orderedList') ? 'bg-accent' : ''}
+        title="Numbered List"
+      >
+        <ListOrdered className="h-4 w-4" />
+      </Button>
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        className={editor.isActive('blockquote') ? 'bg-accent' : ''}
+        title="Quote"
+      >
+        <Quote className="h-4 w-4" />
+      </Button>
 
-        <Separator orientation="vertical" className="h-6 mx-1" />
-
-        {listTools.map((tool) => (
-          <Tooltip key={tool.label}>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onInsert(tool.before, tool.after)}
-                className="h-8 w-8 p-0"
-              >
-                <tool.icon className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{tool.label}</TooltipContent>
-          </Tooltip>
-        ))}
-
-        <Separator orientation="vertical" className="h-6 mx-1" />
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={insertLink}
-              className="h-8 w-8 p-0"
-            >
-              <Link className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Insert Link</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={insertTable}
-              className="h-8 w-8 p-0"
-            >
-              <Table className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Insert Table</TooltipContent>
-        </Tooltip>
-      </div>
-    </TooltipProvider>
+      <div className="w-px h-8 bg-border mx-1" />
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          const url = prompt('Enter URL:');
+          if (url) {
+            editor.chain().focus().setLink({ href: url }).run();
+          }
+        }}
+        className={editor.isActive('link') ? 'bg-accent' : ''}
+        title="Link"
+      >
+        <LinkIcon className="h-4 w-4" />
+      </Button>
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+        title="Insert Table"
+      >
+        <TableIcon className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }
