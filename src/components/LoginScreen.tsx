@@ -40,10 +40,10 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            AT Protocol Notes
+            MBD Scribe
           </h1>
           <p className="text-muted-foreground">
-            Your notes, synced to your Personal Data Server
+            Rich text notes, synced to your Personal Data Server
           </p>
         </div>
 

@@ -71,7 +71,7 @@ export function NotesApp() {
   const createNote = async () => {
     const now = new Date().toISOString();
     const newNote: CachedNote = {
-      $type: 'app.notes.record',
+      $type: 'app.mbdscribe.record',
       title: 'Untitled Note',
       content: '',
       tags: [],

@@ -1,7 +1,7 @@
 // AT Protocol client utilities
 
 export interface ATProtoNote {
-  $type: 'app.notes.record';
+  $type: 'app.mbdscribe.record';
   title: string;
   content: string;
   tags?: string[];
@@ -62,7 +62,7 @@ class ATProtoClient {
     if (!this.credentials) throw new Error('Not authenticated');
 
     const record: ATProtoNote = {
-      $type: 'app.notes.record',
+      $type: 'app.mbdscribe.record',
       ...note,
     };
 
@@ -74,7 +74,7 @@ class ATProtoClient {
       },
       body: JSON.stringify({
         repo: this.credentials.did,
-        collection: 'app.notes.record',
+        collection: 'app.mbdscribe.record',
         record,
       }),
     });
@@ -92,7 +92,7 @@ class ATProtoClient {
     if (!this.credentials) throw new Error('Not authenticated');
 
     const record: ATProtoNote = {
-      $type: 'app.notes.record',
+      $type: 'app.mbdscribe.record',
       ...note,
     };
 
@@ -104,7 +104,7 @@ class ATProtoClient {
       },
       body: JSON.stringify({
         repo: this.credentials.did,
-        collection: 'app.notes.record',
+        collection: 'app.mbdscribe.record',
         rkey,
         record,
       }),
@@ -127,7 +127,7 @@ class ATProtoClient {
       },
       body: JSON.stringify({
         repo: this.credentials.did,
-        collection: 'app.notes.record',
+        collection: 'app.mbdscribe.record',
         rkey,
       }),
     });
@@ -143,7 +143,7 @@ class ATProtoClient {
 
     const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
     url.searchParams.set('repo', this.credentials.did);
-    url.searchParams.set('collection', 'app.notes.record');
+    url.searchParams.set('collection', 'app.mbdscribe.record');
     url.searchParams.set('limit', '100');
 
     const response = await fetch(url.toString(), {
