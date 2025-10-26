@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react';
 import { NotesList } from './NotesList';
 import { NoteEditor } from './NoteEditor';
 import { AppHeader } from './AppHeader';
-import { atprotoClient, ATProtoRecord } from '@/lib/atproto';
+import { FolderSidebar, FolderItem } from './FolderSidebar';
+import { atprotoClient, ATProtoRecord, ATProtoFolder } from '@/lib/atproto';
 import { notesStorage, CachedNote } from '@/lib/storage';
+import { foldersStorage, CachedFolder } from '@/lib/folderStorage';
 import { useToast } from '@/hooks/use-toast';
 
 export function NotesApp() {
   const [notes, setNotes] = useState<CachedNote[]>([]);
+  const [folders, setFolders] = useState<FolderItem[]>([]);
   const [selectedNote, setSelectedNote] = useState<CachedNote | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
@@ -23,7 +27,9 @@ export function NotesApp() {
       
       // Load from local cache first
       const cachedNotes = await notesStorage.getAllNotes();
+      const cachedFolders = await foldersStorage.getAll();
       setNotes(cachedNotes);
+      setFolders(cachedFolders);
 
       // Sync with PDS
       await syncWithPDS();
@@ -42,12 +48,20 @@ export function NotesApp() {
   const syncWithPDS = async () => {
     try {
       setSyncing(true);
-      const remoteNotes = await atprotoClient.listNotes();
       
-      const cachedNotes: CachedNote[] = remoteNotes.map((record: ATProtoRecord) => {
+      // Sync notes
+      const remoteNotes = await atprotoClient.listNotes();
+      const cachedNotes: CachedNote[] = remoteNotes.map((record) => {
         const rkey = record.uri.split('/').pop() || '';
+        const noteValue = record.value as any; // The value is already typed correctly from listNotes
         return {
-          ...record.value,
+          $type: 'app.mbdio.uk.note' as const,
+          title: noteValue.title,
+          content: noteValue.content,
+          tags: noteValue.tags,
+          folder: noteValue.folder,
+          createdAt: noteValue.createdAt,
+          updatedAt: noteValue.updatedAt,
           uri: record.uri,
           cid: record.cid,
           rkey,
@@ -55,12 +69,28 @@ export function NotesApp() {
         };
       });
 
-      // Save to local cache
       for (const note of cachedNotes) {
         await notesStorage.saveNote(note);
       }
-
       setNotes(cachedNotes);
+
+      // Sync folders
+      const remoteFolders = await atprotoClient.listFolders();
+      const cachedFolders: CachedFolder[] = remoteFolders.map((record: ATProtoRecord<ATProtoFolder>) => {
+        const rkey = record.uri.split('/').pop() || '';
+        return {
+          ...record.value,
+          uri: record.uri,
+          cid: record.cid,
+          rkey,
+        };
+      });
+
+      for (const folder of cachedFolders) {
+        await foldersStorage.save(folder);
+      }
+      setFolders(cachedFolders);
+
     } catch (error) {
       console.error('Sync failed:', error);
     } finally {
@@ -75,6 +105,7 @@ export function NotesApp() {
       title: 'Untitled Note',
       content: '',
       tags: [],
+      folder: selectedFolder || undefined,
       createdAt: now,
       updatedAt: now,
       uri: '',
@@ -93,12 +124,25 @@ export function NotesApp() {
         title: newNote.title,
         content: newNote.content,
         tags: newNote.tags,
+        folder: newNote.folder,
         createdAt: newNote.createdAt,
         updatedAt: newNote.updatedAt,
       });
 
       const rkey = record.uri.split('/').pop() || '';
-      const syncedNote = { ...newNote, ...record.value, uri: record.uri, cid: record.cid, rkey, syncStatus: 'synced' as const };
+      const syncedNote: CachedNote = {
+        $type: newNote.$type,
+        title: newNote.title,
+        content: newNote.content,
+        tags: newNote.tags,
+        folder: newNote.folder,
+        createdAt: newNote.createdAt,
+        updatedAt: newNote.updatedAt,
+        uri: record.uri,
+        cid: record.cid,
+        rkey,
+        syncStatus: 'synced' as const,
+      };
       
       await notesStorage.saveNote(syncedNote);
       setNotes(notes.map(n => n.rkey === newNote.rkey ? syncedNote : n));
@@ -125,6 +169,7 @@ export function NotesApp() {
           title: noteToUpdate.title,
           content: noteToUpdate.content,
           tags: noteToUpdate.tags,
+          folder: noteToUpdate.folder,
           createdAt: noteToUpdate.createdAt,
           updatedAt: noteToUpdate.updatedAt,
         });
@@ -156,12 +201,59 @@ export function NotesApp() {
     }
   };
 
+  const createFolder = async (name: string, color: string) => {
+    try {
+      const record = await atprotoClient.createFolder({
+        name,
+        color,
+        createdAt: new Date().toISOString(),
+      });
+
+      const rkey = record.uri.split('/').pop() || '';
+      const newFolder: FolderItem = {
+        uri: record.uri,
+        rkey,
+        name,
+        color,
+        createdAt: new Date().toISOString(),
+      };
+
+      await foldersStorage.save(newFolder as CachedFolder);
+      setFolders([...folders, newFolder]);
+      toast({ title: 'Folder created', description: `"${name}" has been created` });
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to create folder', variant: 'destructive' });
+    }
+  };
+
+  const deleteFolder = async (rkey: string) => {
+    try {
+      await atprotoClient.deleteFolder(rkey);
+      await foldersStorage.delete(rkey);
+      setFolders(folders.filter(f => f.rkey !== rkey));
+      toast({ title: 'Folder deleted' });
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to delete folder', variant: 'destructive' });
+    }
+  };
+
+  const filteredNotes = selectedFolder
+    ? notes.filter(note => note.folder === selectedFolder)
+    : notes;
+
   return (
     <div className="h-screen flex flex-col bg-background">
       <AppHeader onNewNote={createNote} onSync={syncWithPDS} syncing={syncing} />
       <div className="flex-1 flex overflow-hidden">
+        <FolderSidebar
+          folders={folders}
+          selectedFolder={selectedFolder}
+          onSelectFolder={setSelectedFolder}
+          onCreateFolder={createFolder}
+          onDeleteFolder={deleteFolder}
+        />
         <NotesList
-          notes={notes}
+          notes={filteredNotes}
           selectedNote={selectedNote}
           onSelectNote={setSelectedNote}
           loading={loading}

@@ -84,7 +84,7 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
       clearTimeout(syncTimerRef.current);
     }
 
-    // Set new timer for 4 seconds
+    // Set new timer for 10 seconds
     syncTimerRef.current = setTimeout(() => {
       const html = editor.getHTML();
       onUpdate({
@@ -93,7 +93,7 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
         content: html,
         tags,
       });
-    }, 4000);
+    }, 10000);
 
     // Cleanup on unmount
     return () => {

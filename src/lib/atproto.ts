@@ -4,15 +4,40 @@ export interface ATProtoNote {
   $type: 'app.mbdio.uk.note';
   title: string;
   content: string;
-  tags?: string[];
+  tags?: string[]; // Array of tag URIs
+  folder?: string; // Folder URI
   createdAt: string;
   updatedAt: string;
 }
 
-export interface ATProtoRecord {
+export interface ATProtoTag {
+  $type: 'app.mbdio.uk.tag';
+  name: string;
+  color?: string;
+  createdAt: string;
+}
+
+export interface ATProtoFolder {
+  $type: 'app.mbdio.uk.folder';
+  name: string;
+  color?: string;
+  parent?: string; // Parent folder URI for nesting
+  createdAt: string;
+}
+
+export interface ATProtoTheme {
+  $type: 'app.mbdio.uk.theme';
+  name: string;
+  mode: 'light' | 'dark';
+  accent?: string;
+  background?: string;
+  createdAt: string;
+}
+
+export interface ATProtoRecord<T = ATProtoNote | ATProtoTag | ATProtoFolder | ATProtoTheme> {
   uri: string;
   cid: string;
-  value: ATProtoNote;
+  value: T;
 }
 
 export interface ATProtoCredentials {
@@ -157,6 +182,244 @@ class ATProtoClient {
 
     const data = await response.json();
     return data.records || [];
+  }
+
+  // Tag operations
+  async createTag(tag: Omit<ATProtoTag, '$type'>): Promise<ATProtoRecord> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const record: ATProtoTag = { $type: 'app.mbdio.uk.tag', ...tag };
+
+    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.createRecord`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.credentials.accessJwt}`,
+      },
+      body: JSON.stringify({
+        repo: this.credentials.did,
+        collection: 'app.mbdio.uk.tag',
+        record,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create tag');
+    }
+
+    const data = await response.json();
+    return { uri: data.uri, cid: data.cid, value: record };
+  }
+
+  async listTags(): Promise<ATProtoRecord[]> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
+    url.searchParams.set('repo', this.credentials.did);
+    url.searchParams.set('collection', 'app.mbdio.uk.tag');
+    url.searchParams.set('limit', '100');
+
+    const response = await fetch(url.toString(), {
+      headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to list tags');
+    }
+
+    const data = await response.json();
+    return data.records || [];
+  }
+
+  async deleteTag(rkey: string): Promise<void> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.credentials.accessJwt}`,
+      },
+      body: JSON.stringify({
+        repo: this.credentials.did,
+        collection: 'app.mbdio.uk.tag',
+        rkey,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete tag');
+    }
+  }
+
+  // Folder operations
+  async createFolder(folder: Omit<ATProtoFolder, '$type'>): Promise<ATProtoRecord> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const record: ATProtoFolder = { $type: 'app.mbdio.uk.folder', ...folder };
+
+    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.createRecord`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.credentials.accessJwt}`,
+      },
+      body: JSON.stringify({
+        repo: this.credentials.did,
+        collection: 'app.mbdio.uk.folder',
+        record,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create folder');
+    }
+
+    const data = await response.json();
+    return { uri: data.uri, cid: data.cid, value: record };
+  }
+
+  async updateFolder(rkey: string, folder: Omit<ATProtoFolder, '$type'>): Promise<void> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const record: ATProtoFolder = { $type: 'app.mbdio.uk.folder', ...folder };
+
+    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.putRecord`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.credentials.accessJwt}`,
+      },
+      body: JSON.stringify({
+        repo: this.credentials.did,
+        collection: 'app.mbdio.uk.folder',
+        rkey,
+        record,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update folder');
+    }
+  }
+
+  async listFolders(): Promise<ATProtoRecord[]> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
+    url.searchParams.set('repo', this.credentials.did);
+    url.searchParams.set('collection', 'app.mbdio.uk.folder');
+    url.searchParams.set('limit', '100');
+
+    const response = await fetch(url.toString(), {
+      headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to list folders');
+    }
+
+    const data = await response.json();
+    return data.records || [];
+  }
+
+  async deleteFolder(rkey: string): Promise<void> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.credentials.accessJwt}`,
+      },
+      body: JSON.stringify({
+        repo: this.credentials.did,
+        collection: 'app.mbdio.uk.folder',
+        rkey,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete folder');
+    }
+  }
+
+  // Theme operations
+  async createTheme(theme: Omit<ATProtoTheme, '$type'>): Promise<ATProtoRecord> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const record: ATProtoTheme = { $type: 'app.mbdio.uk.theme', ...theme };
+
+    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.createRecord`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.credentials.accessJwt}`,
+      },
+      body: JSON.stringify({
+        repo: this.credentials.did,
+        collection: 'app.mbdio.uk.theme',
+        record,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create theme');
+    }
+
+    const data = await response.json();
+    return { uri: data.uri, cid: data.cid, value: record };
+  }
+
+  async listThemes(): Promise<ATProtoRecord[]> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
+    url.searchParams.set('repo', this.credentials.did);
+    url.searchParams.set('collection', 'app.mbdio.uk.theme');
+    url.searchParams.set('limit', '100');
+
+    const response = await fetch(url.toString(), {
+      headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to list themes');
+    }
+
+    const data = await response.json();
+    return data.records || [];
+  }
+
+  async deleteTheme(rkey: string): Promise<void> {
+    if (!this.credentials) throw new Error('Not authenticated');
+
+    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.credentials.accessJwt}`,
+      },
+      body: JSON.stringify({
+        repo: this.credentials.did,
+        collection: 'app.mbdio.uk.theme',
+        rkey,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete theme');
+    }
   }
 }
 
