@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
@@ -35,6 +35,7 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const syncTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -62,16 +63,6 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[500px] px-6 py-4 font-serif text-base',
       },
     },
-    onUpdate: ({ editor }) => {
-      if (!note) return;
-      const html = editor.getHTML();
-      onUpdate({
-        ...note,
-        title,
-        content: html,
-        tags,
-      });
-    },
   });
 
   useEffect(() => {
@@ -84,8 +75,41 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
     }
   }, [note, editor]);
 
-  const handleUpdate = () => {
+  // Debounced sync effect - syncs 4 seconds after user stops typing
+  useEffect(() => {
     if (!note || !editor) return;
+
+    // Clear existing timer
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
+    }
+
+    // Set new timer for 4 seconds
+    syncTimerRef.current = setTimeout(() => {
+      const html = editor.getHTML();
+      onUpdate({
+        ...note,
+        title,
+        content: html,
+        tags,
+      });
+    }, 4000);
+
+    // Cleanup on unmount
+    return () => {
+      if (syncTimerRef.current) {
+        clearTimeout(syncTimerRef.current);
+      }
+    };
+  }, [title, tags, editor?.state.doc, note, onUpdate]);
+
+  const handleManualUpdate = () => {
+    if (!note || !editor) return;
+    // Clear the debounce timer and sync immediately
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = null;
+    }
     onUpdate({
       ...note,
       title,
@@ -99,18 +123,12 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
       const newTags = [...tags, tagInput.trim()];
       setTags(newTags);
       setTagInput('');
-      if (note && editor) {
-        onUpdate({ ...note, title, content: editor.getHTML(), tags: newTags });
-      }
     }
   };
 
   const removeTag = (tagToRemove: string) => {
     const newTags = tags.filter(tag => tag !== tagToRemove);
     setTags(newTags);
-    if (note && editor) {
-      onUpdate({ ...note, title, content: editor.getHTML(), tags: newTags });
-    }
   };
 
 
@@ -133,7 +151,6 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleUpdate}
               placeholder="Note title"
               className="text-3xl font-serif font-bold border-0 px-0 focus-visible:ring-0"
             />
