@@ -13,6 +13,7 @@ export interface CachedFolder extends ATProtoFolder {
 }
 
 export interface CachedTag extends ATProtoTag {
+  $type: 'app.mbdio.uk.tag';
   uri: string;
   cid: string;
   rkey: string;

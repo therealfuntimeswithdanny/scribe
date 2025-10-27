@@ -9,8 +9,10 @@ import { Link } from '@tiptap/extension-link';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Tag, X, FileText } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Trash2, Tag, X, FileText, Folder } from 'lucide-react';
 import { CachedNote } from '@/lib/storage';
+import { FolderItem } from './FolderSidebar';
 import { MarkdownToolbar } from './MarkdownToolbar';
 import { EditorContent } from '@tiptap/react';
 import {
@@ -27,11 +29,12 @@ import {
 
 interface NoteEditorProps {
   note: CachedNote | null;
+  folders: FolderItem[];
   onUpdate: (note: CachedNote) => void;
   onDelete: (rkey: string) => void;
 }
 
-export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
+export function NoteEditor({ note, folders, onUpdate, onDelete }: NoteEditorProps) {
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
@@ -84,7 +87,7 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
       clearTimeout(syncTimerRef.current);
     }
 
-    // Set new timer for 10 seconds
+    // Set new timer for 30 seconds
     syncTimerRef.current = setTimeout(() => {
       const html = editor.getHTML();
       onUpdate({
@@ -93,7 +96,7 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
         content: html,
         tags,
       });
-    }, 10000);
+    }, 30000);
 
     // Cleanup on unmount
     return () => {
@@ -147,13 +150,44 @@ export function NoteEditor({ note, onUpdate, onDelete }: NoteEditorProps) {
     <div className="flex-1 flex flex-col">
       <div className="flex-1 overflow-auto">
         <div className="max-w-4xl mx-auto">
-          <div className="p-6 pb-2">
+          <div className="p-6 pb-2 space-y-4">
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Note title"
               className="text-3xl font-serif font-bold border-0 px-0 focus-visible:ring-0"
             />
+            
+            <div className="flex items-center gap-2">
+              <Folder className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={note.folder || 'none'}
+                onValueChange={(value) => {
+                  onUpdate({
+                    ...note,
+                    folder: value === 'none' ? undefined : value,
+                  });
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select folder" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Folder</SelectItem>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.rkey} value={folder.rkey}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: folder.color }}
+                        />
+                        {folder.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="border-b border-border/50">

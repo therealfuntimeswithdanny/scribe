@@ -3,14 +3,15 @@ import { NotesList } from './NotesList';
 import { NoteEditor } from './NoteEditor';
 import { AppHeader } from './AppHeader';
 import { FolderSidebar, FolderItem } from './FolderSidebar';
-import { atprotoClient, ATProtoRecord, ATProtoFolder } from '@/lib/atproto';
+import { atprotoClient, ATProtoRecord, ATProtoFolder, ATProtoTag } from '@/lib/atproto';
 import { notesStorage, CachedNote } from '@/lib/storage';
-import { foldersStorage, CachedFolder } from '@/lib/folderStorage';
+import { foldersStorage, tagsStorage, CachedFolder, CachedTag } from '@/lib/folderStorage';
 import { useToast } from '@/hooks/use-toast';
 
 export function NotesApp() {
   const [notes, setNotes] = useState<CachedNote[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
+  const [tags, setTags] = useState<CachedTag[]>([]);
   const [selectedNote, setSelectedNote] = useState<CachedNote | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,8 +29,10 @@ export function NotesApp() {
       // Load from local cache first
       const cachedNotes = await notesStorage.getAllNotes();
       const cachedFolders = await foldersStorage.getAll();
+      const cachedTags = await tagsStorage.getAll();
       setNotes(cachedNotes);
       setFolders(cachedFolders);
+      setTags(cachedTags);
 
       // Sync with PDS
       await syncWithPDS();
@@ -90,6 +93,24 @@ export function NotesApp() {
         await foldersStorage.save(folder);
       }
       setFolders(cachedFolders);
+
+      // Sync tags
+      const remoteTags = await atprotoClient.listTags();
+      const cachedTagsList: CachedTag[] = remoteTags.map((record: ATProtoRecord<ATProtoTag>) => {
+        const rkey = record.uri.split('/').pop() || '';
+        return {
+          $type: 'app.mbdio.uk.tag' as const,
+          ...record.value,
+          uri: record.uri,
+          cid: record.cid,
+          rkey,
+        };
+      });
+
+      for (const tag of cachedTagsList) {
+        await tagsStorage.save(tag);
+      }
+      setTags(cachedTagsList);
 
     } catch (error) {
       console.error('Sync failed:', error);
@@ -156,6 +177,40 @@ export function NotesApp() {
 
   const updateNote = async (updatedNote: CachedNote) => {
     const now = new Date().toISOString();
+    
+    // Create tag records for any new tags
+    const tagRkeys: string[] = [];
+    for (const tagName of updatedNote.tags) {
+      const existingTag = tags.find(t => t.name === tagName);
+      if (existingTag) {
+        tagRkeys.push(existingTag.rkey);
+      } else {
+        // Create new tag
+        try {
+          const record = await atprotoClient.createTag({
+            name: tagName,
+            color: '#' + Math.floor(Math.random()*16777215).toString(16),
+            createdAt: now,
+          });
+          const rkey = record.uri.split('/').pop() || '';
+          const newTag: CachedTag = {
+            $type: 'app.mbdio.uk.tag' as const,
+            name: tagName,
+            color: '#' + Math.floor(Math.random()*16777215).toString(16),
+            createdAt: now,
+            uri: record.uri,
+            cid: record.cid,
+            rkey,
+          };
+          await tagsStorage.save(newTag);
+          setTags([...tags, newTag]);
+          tagRkeys.push(rkey);
+        } catch (error) {
+          console.error('Failed to create tag:', error);
+        }
+      }
+    }
+    
     const noteToUpdate = { ...updatedNote, updatedAt: now, syncStatus: 'pending' as const };
     
     setNotes(notes.map(n => n.rkey === noteToUpdate.rkey ? noteToUpdate : n));
@@ -168,7 +223,7 @@ export function NotesApp() {
         await atprotoClient.updateNote(noteToUpdate.rkey, {
           title: noteToUpdate.title,
           content: noteToUpdate.content,
-          tags: noteToUpdate.tags,
+          tags: tagRkeys,
           folder: noteToUpdate.folder,
           createdAt: noteToUpdate.createdAt,
           updatedAt: noteToUpdate.updatedAt,
@@ -260,6 +315,7 @@ export function NotesApp() {
         />
         <NoteEditor
           note={selectedNote}
+          folders={folders}
           onUpdate={updateNote}
           onDelete={deleteNote}
         />
