@@ -99,7 +99,7 @@ class ATProtoClient {
       },
       body: JSON.stringify({
         repo: this.credentials.did,
-        collection: 'app.mbdio.uk.note',
+        collection: 'uk.mbdio.app.note',
         record,
       }),
     });
@@ -121,67 +121,93 @@ class ATProtoClient {
       ...note,
     };
 
-    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.putRecord`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.credentials.accessJwt}`,
-      },
-      body: JSON.stringify({
-        repo: this.credentials.did,
-        collection: 'app.mbdio.uk.note',
-        rkey,
-        record,
-      }),
-    });
+    // Try new namespace first, then fall back to old namespace
+    const collections = ['uk.mbdio.app.note', 'app.mbdio.uk.note'];
+    
+    for (const collection of collections) {
+      const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.putRecord`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.credentials.accessJwt}`,
+        },
+        body: JSON.stringify({
+          repo: this.credentials.did,
+          collection,
+          rkey,
+          record,
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to update note');
+      if (response.ok) return;
+      
+      // If it's the last collection and still failed, throw error
+      if (collection === collections[collections.length - 1]) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update note');
+      }
     }
   }
 
   async deleteNote(rkey: string): Promise<void> {
     if (!this.credentials) throw new Error('Not authenticated');
 
-    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.credentials.accessJwt}`,
-      },
-      body: JSON.stringify({
-        repo: this.credentials.did,
-        collection: 'app.mbdio.uk.note',
-        rkey,
-      }),
-    });
+    // Try new namespace first, then fall back to old namespace
+    const collections = ['uk.mbdio.app.note', 'app.mbdio.uk.note'];
+    
+    for (const collection of collections) {
+      const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.credentials.accessJwt}`,
+        },
+        body: JSON.stringify({
+          repo: this.credentials.did,
+          collection,
+          rkey,
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to delete note');
+      if (response.ok) return;
+      
+      // If it's the last collection and still failed, throw error
+      if (collection === collections[collections.length - 1]) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete note');
+      }
     }
   }
 
   async listNotes(): Promise<ATProtoRecord[]> {
     if (!this.credentials) throw new Error('Not authenticated');
 
-    const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
-    url.searchParams.set('repo', this.credentials.did);
-    url.searchParams.set('collection', 'app.mbdio.uk.note');
-    url.searchParams.set('limit', '100');
+    // Fetch from both old and new namespaces
+    const collections = ['app.mbdio.uk.note', 'uk.mbdio.app.note'];
+    const allRecords: ATProtoRecord[] = [];
 
-    const response = await fetch(url.toString(), {
-      headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
-    });
+    for (const collection of collections) {
+      const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
+      url.searchParams.set('repo', this.credentials.did);
+      url.searchParams.set('collection', collection);
+      url.searchParams.set('limit', '100');
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to list notes');
+      try {
+        const response = await fetch(url.toString(), {
+          headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          allRecords.push(...(data.records || []));
+        }
+      } catch (error) {
+        // Continue if one collection fails
+        console.warn(`Failed to fetch from ${collection}:`, error);
+      }
     }
 
-    const data = await response.json();
-    return data.records || [];
+    return allRecords;
   }
 
   // Tag operations
@@ -198,7 +224,7 @@ class ATProtoClient {
       },
       body: JSON.stringify({
         repo: this.credentials.did,
-        collection: 'app.mbdio.uk.tag',
+        collection: 'uk.mbdio.app.tag',
         record,
       }),
     });
@@ -215,43 +241,59 @@ class ATProtoClient {
   async listTags(): Promise<ATProtoRecord[]> {
     if (!this.credentials) throw new Error('Not authenticated');
 
-    const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
-    url.searchParams.set('repo', this.credentials.did);
-    url.searchParams.set('collection', 'app.mbdio.uk.tag');
-    url.searchParams.set('limit', '100');
+    // Fetch from both old and new namespaces
+    const collections = ['app.mbdio.uk.tag', 'uk.mbdio.app.tag'];
+    const allRecords: ATProtoRecord[] = [];
 
-    const response = await fetch(url.toString(), {
-      headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
-    });
+    for (const collection of collections) {
+      const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
+      url.searchParams.set('repo', this.credentials.did);
+      url.searchParams.set('collection', collection);
+      url.searchParams.set('limit', '100');
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to list tags');
+      try {
+        const response = await fetch(url.toString(), {
+          headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          allRecords.push(...(data.records || []));
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch from ${collection}:`, error);
+      }
     }
 
-    const data = await response.json();
-    return data.records || [];
+    return allRecords;
   }
 
   async deleteTag(rkey: string): Promise<void> {
     if (!this.credentials) throw new Error('Not authenticated');
 
-    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.credentials.accessJwt}`,
-      },
-      body: JSON.stringify({
-        repo: this.credentials.did,
-        collection: 'app.mbdio.uk.tag',
-        rkey,
-      }),
-    });
+    // Try new namespace first, then fall back to old namespace
+    const collections = ['uk.mbdio.app.tag', 'app.mbdio.uk.tag'];
+    
+    for (const collection of collections) {
+      const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.credentials.accessJwt}`,
+        },
+        body: JSON.stringify({
+          repo: this.credentials.did,
+          collection,
+          rkey,
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to delete tag');
+      if (response.ok) return;
+      
+      if (collection === collections[collections.length - 1]) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete tag');
+      }
     }
   }
 
@@ -269,7 +311,7 @@ class ATProtoClient {
       },
       body: JSON.stringify({
         repo: this.credentials.did,
-        collection: 'app.mbdio.uk.folder',
+        collection: 'uk.mbdio.app.folder',
         record,
       }),
     });
@@ -288,66 +330,89 @@ class ATProtoClient {
 
     const record: ATProtoFolder = { $type: 'app.mbdio.uk.folder', ...folder };
 
-    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.putRecord`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.credentials.accessJwt}`,
-      },
-      body: JSON.stringify({
-        repo: this.credentials.did,
-        collection: 'app.mbdio.uk.folder',
-        rkey,
-        record,
-      }),
-    });
+    // Try new namespace first, then fall back to old namespace
+    const collections = ['uk.mbdio.app.folder', 'app.mbdio.uk.folder'];
+    
+    for (const collection of collections) {
+      const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.putRecord`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.credentials.accessJwt}`,
+        },
+        body: JSON.stringify({
+          repo: this.credentials.did,
+          collection,
+          rkey,
+          record,
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to update folder');
+      if (response.ok) return;
+      
+      if (collection === collections[collections.length - 1]) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update folder');
+      }
     }
   }
 
   async listFolders(): Promise<ATProtoRecord[]> {
     if (!this.credentials) throw new Error('Not authenticated');
 
-    const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
-    url.searchParams.set('repo', this.credentials.did);
-    url.searchParams.set('collection', 'app.mbdio.uk.folder');
-    url.searchParams.set('limit', '100');
+    // Fetch from both old and new namespaces
+    const collections = ['app.mbdio.uk.folder', 'uk.mbdio.app.folder'];
+    const allRecords: ATProtoRecord[] = [];
 
-    const response = await fetch(url.toString(), {
-      headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
-    });
+    for (const collection of collections) {
+      const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
+      url.searchParams.set('repo', this.credentials.did);
+      url.searchParams.set('collection', collection);
+      url.searchParams.set('limit', '100');
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to list folders');
+      try {
+        const response = await fetch(url.toString(), {
+          headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          allRecords.push(...(data.records || []));
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch from ${collection}:`, error);
+      }
     }
 
-    const data = await response.json();
-    return data.records || [];
+    return allRecords;
   }
 
   async deleteFolder(rkey: string): Promise<void> {
     if (!this.credentials) throw new Error('Not authenticated');
 
-    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.credentials.accessJwt}`,
-      },
-      body: JSON.stringify({
-        repo: this.credentials.did,
-        collection: 'app.mbdio.uk.folder',
-        rkey,
-      }),
-    });
+    // Try new namespace first, then fall back to old namespace
+    const collections = ['uk.mbdio.app.folder', 'app.mbdio.uk.folder'];
+    
+    for (const collection of collections) {
+      const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.credentials.accessJwt}`,
+        },
+        body: JSON.stringify({
+          repo: this.credentials.did,
+          collection,
+          rkey,
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to delete folder');
+      if (response.ok) return;
+      
+      if (collection === collections[collections.length - 1]) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete folder');
+      }
     }
   }
 
@@ -365,7 +430,7 @@ class ATProtoClient {
       },
       body: JSON.stringify({
         repo: this.credentials.did,
-        collection: 'app.mbdio.uk.theme',
+        collection: 'uk.mbdio.app.theme',
         record,
       }),
     });
@@ -382,43 +447,59 @@ class ATProtoClient {
   async listThemes(): Promise<ATProtoRecord[]> {
     if (!this.credentials) throw new Error('Not authenticated');
 
-    const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
-    url.searchParams.set('repo', this.credentials.did);
-    url.searchParams.set('collection', 'app.mbdio.uk.theme');
-    url.searchParams.set('limit', '100');
+    // Fetch from both old and new namespaces
+    const collections = ['app.mbdio.uk.theme', 'uk.mbdio.app.theme'];
+    const allRecords: ATProtoRecord[] = [];
 
-    const response = await fetch(url.toString(), {
-      headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
-    });
+    for (const collection of collections) {
+      const url = new URL(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.listRecords`);
+      url.searchParams.set('repo', this.credentials.did);
+      url.searchParams.set('collection', collection);
+      url.searchParams.set('limit', '100');
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to list themes');
+      try {
+        const response = await fetch(url.toString(), {
+          headers: { 'Authorization': `Bearer ${this.credentials.accessJwt}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          allRecords.push(...(data.records || []));
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch from ${collection}:`, error);
+      }
     }
 
-    const data = await response.json();
-    return data.records || [];
+    return allRecords;
   }
 
   async deleteTheme(rkey: string): Promise<void> {
     if (!this.credentials) throw new Error('Not authenticated');
 
-    const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.credentials.accessJwt}`,
-      },
-      body: JSON.stringify({
-        repo: this.credentials.did,
-        collection: 'app.mbdio.uk.theme',
-        rkey,
-      }),
-    });
+    // Try new namespace first, then fall back to old namespace
+    const collections = ['uk.mbdio.app.theme', 'app.mbdio.uk.theme'];
+    
+    for (const collection of collections) {
+      const response = await fetch(`${this.credentials.pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.credentials.accessJwt}`,
+        },
+        body: JSON.stringify({
+          repo: this.credentials.did,
+          collection,
+          rkey,
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to delete theme');
+      if (response.ok) return;
+      
+      if (collection === collections[collections.length - 1]) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete theme');
+      }
     }
   }
 }
